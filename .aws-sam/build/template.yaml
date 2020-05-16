@@ -1,8 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'file_storage_oregon
-
-  Sample SAM Template for file_storage_oregon
+Description: 'file_storage_oregon Sample SAM Template for file_storage_oregon
 
   '
 Globals:
@@ -23,8 +21,8 @@ Resources:
         HelloWorld:
           Type: Api
           Properties:
-            Path: /hello
-            Method: get
+            Path: /requestfileuploadurl
+            Method: post
 Outputs:
   HelloWorldApi:
     Description: API Gateway endpoint URL for Prod stage for Hello World function
