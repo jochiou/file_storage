@@ -53,10 +53,10 @@ public class App implements RequestHandler<Object, Object> {
             return new GatewayResponse(output, headers, 200);
         } catch (JsonSyntaxException e){
             e.printStackTrace();
-            return new GatewayResponse("invalid json syntax", headers, 500);
+            return new GatewayResponse("invalid json syntax  -- " + e.getMessage(), headers, 500);
         } catch (Exception e) {
             e.printStackTrace();
-            return new GatewayResponse("unexpected error happened", headers, 500);
+            return new GatewayResponse("unexpected error happened  -- " + e.getMessage(), headers, 500);
         }
     }
 
