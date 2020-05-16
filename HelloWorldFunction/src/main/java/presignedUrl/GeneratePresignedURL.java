@@ -1,10 +1,9 @@
-package helloworld;
+package presignedUrl;
 
 import com.amazonaws.AmazonServiceException;
 
 import com.amazonaws.HttpMethod;
 import com.amazonaws.SdkClientException;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -23,13 +22,10 @@ public class GeneratePresignedURL {
     public static void main(String[] args) throws IOException {
         Regions clientRegion = Regions.US_WEST_2;
         String bucketName = "public-file-storage-oregon";
-        String objectKey = "testFile.txt";
+        String objectKey = "testFile2.txt";
 
         try {
-            AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
-                    .withCredentials(new ProfileCredentialsProvider())
-                    .withRegion(clientRegion)
-                    .build();
+            AmazonS3 s3Client = AmazonS3ClientBuilder.defaultClient();
 
             // Set the pre-signed URL to expire after one hour.
             java.util.Date expiration = new java.util.Date();

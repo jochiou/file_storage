@@ -1,10 +1,8 @@
-package helloworld;
+package presignedUrl;
 
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,31 +11,50 @@ import java.util.stream.Collectors;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.SdkClientException;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.services.s3.model.S3Object;
 
+import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonAnyFormatVisitor;
+import com.google.gson.stream.JsonReader;
+import jdk.nashorn.internal.parser.JSONParser;
+import com.google.gson.*;
 /**
  * Handler for requests to Lambda function.
  */
 public class App implements RequestHandler<Object, Object> {
 
     public Object handleRequest(final Object input, final Context context) {
+        //context = context.getLogger();
+        System.out.println("orig input: " + input);
+
         Map<String, String> headers = new HashMap<>();
         headers.put("Content-Type", "application/json");
         headers.put("X-Custom-Header", "application/json");
         try {
             //final String pageContents = this.getPageContents("https://checkip.amazonaws.com");
-            String output = createPresignedUrl("test-file-name.txt");
-                    //String.format("{ \"message\": \"hello world\", \"location\": \"%s\" }", pageContents);
+            Gson gson = new Gson();
+            JsonReader jr = new JsonReader(new StringReader(input.toString().trim()));
+            jr.setLenient(true);
+            Map keyValueMap = (Map) gson.fromJson(jr, Object.class);
 
+            //gson.fromJson(gson.toJson(input.toString().trim()), String.class);
+
+            String fileSignature = keyValueMap.get("fileSignature").toString();
+
+            String output = createPresignedUrl(fileSignature);
+                    //String.format("{ \"message\": \"hello world\", \"location\": \"%s\" }", pageContents);
+            //APIGatewayProxyResponseEvent output = new APIGatewayProxyResponseEvent();
+            //output.setBody(url);
             return new GatewayResponse(output, headers, 200);
-        } catch (IOException e) {
+        } catch (JsonSyntaxException e){
+            e.printStackTrace();
+            return new GatewayResponse("{invalid json syntax}", headers, 500);
+        } catch (Exception e) {
             e.printStackTrace();
             return new GatewayResponse("{}", headers, 500);
         }
@@ -53,14 +70,16 @@ public class App implements RequestHandler<Object, Object> {
     private String createPresignedUrl(String fileSignature) throws AmazonServiceException, SdkClientException, IOException {
         Regions clientRegion = Regions.US_WEST_2;
         String bucketName = "public-file-storage-oregon";
-        String objectKey = "testFile.txt";
+        String objectKey = fileSignature;
 
 
-        AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
+        AmazonS3 s3Client = AmazonS3ClientBuilder.defaultClient();
+                /*
+                AmazonS3ClientBuilder.standard()
                 .withCredentials(new ProfileCredentialsProvider())
                 .withRegion(clientRegion)
                 .build();
-
+                */
         // Set the pre-signed URL to expire after one hour.
         java.util.Date expiration = new java.util.Date();
         long expTimeMillis = expiration.getTime();
