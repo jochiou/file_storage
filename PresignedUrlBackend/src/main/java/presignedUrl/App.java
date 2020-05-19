@@ -15,48 +15,66 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 
-import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonAnyFormatVisitor;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
 import com.google.gson.stream.JsonReader;
 import jdk.nashorn.internal.parser.JSONParser;
 import com.google.gson.*;
 /**
  * Handler for requests to Lambda function.
  */
-public class App implements RequestHandler<Object, Object> {
+public class App implements RequestHandler<APIGatewayProxyResponseEvent, Object> {
 
-    public Object handleRequest(final Object input, final Context context) {
+    public Object handleRequest(final APIGatewayProxyResponseEvent input, final Context context) {
         //context = context.getLogger();
         System.out.println("orig input: " + input);
+        System.out.println("request body: " + input.getBody());
 
         Map<String, String> headers = new HashMap<>();
+        headers.put("Access-Control-Allow-Origin", "*");
         headers.put("Content-Type", "application/json");
         headers.put("X-Custom-Header", "application/json");
+
+
         try {
             //final String pageContents = this.getPageContents("https://checkip.amazonaws.com");
+            /*
+            ObjectMapper mapper = new ObjectMapper();
+            //mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+            JsonNode jsonObj = mapper.readTree(input.toString().trim());
+            String fileSignature = jsonObj.get("fileSignature").toString();
+            */
+
             Gson gson = new Gson();
-            JsonReader jr = new JsonReader(new StringReader(input.toString().trim()));
+            JsonReader jr = new JsonReader(new StringReader(input.getBody().trim()));
             jr.setLenient(true);
             Map keyValueMap = (Map) gson.fromJson(jr, Object.class);
-
             //gson.fromJson(gson.toJson(input.toString().trim()), String.class);
-
             String fileSignature = keyValueMap.get("fileSignature").toString();
 
+            if(fileSignature.trim().length() < 1){
+                return new GatewayResponse("Invalid file name", headers, 500);
+            }
+
             String output = createPresignedUrl(fileSignature);
-                    //String.format("{ \"message\": \"hello world\", \"location\": \"%s\" }", pageContents);
+            //String.format("{ \"message\": \"hello world\", \"location\": \"%s\" }", pageContents);
             //APIGatewayProxyResponseEvent output = new APIGatewayProxyResponseEvent();
             //output.setBody(url);
             return new GatewayResponse(output, headers, 200);
-        } catch (JsonSyntaxException e){
+        } catch (JsonParseException e){
             e.printStackTrace();
-            return new GatewayResponse("invalid json syntax  -- " + e.getMessage(), headers, 500);
+            return new GatewayResponse("Invalid json syntax: " + ", Input: " + input + ", Error Message: " + e.getMessage(), headers, 500);
         } catch (Exception e) {
             e.printStackTrace();
-            return new GatewayResponse("unexpected error happened  -- " + e.getMessage(), headers, 500);
+            return new GatewayResponse("Unexpected error happened: " + ", Input: " + input + ", Error Message: " + e.getMessage(), headers, 500);
         }
     }
 
@@ -69,7 +87,8 @@ public class App implements RequestHandler<Object, Object> {
 
     private String createPresignedUrl(String fileSignature) throws AmazonServiceException, SdkClientException, IOException {
         Regions clientRegion = Regions.US_WEST_2;
-        String bucketName = "public-file-storage-oregon";
+        //String bucketName = "public-file-storage-oregon";
+        String bucketName = "file-storage-oregon";
         String objectKey = fileSignature;
 
 

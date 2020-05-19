@@ -9,31 +9,189 @@ Globals:
     Timeout: 20
 
 Resources:
-  HelloWorldFunction:
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      EndpointConfiguration: REGIONAL
+      Cors:
+        AllowMethods: "POST, GET, OPTION"
+        AllowHeaders: "*"
+        AllowOrigin: "*"
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          version: '0.0.1'
+          title: 'FileStorageAPI'
+        #    'Fn::Sub':
+        #      - 'myblueprint-${EnvironmentLowerCase}'
+        #      - EnvironmentLowerCase: !FindInMap [Config, !Ref Environment, EnvironmentLowerCase]
+        basePath: '/prod'
+        schemes:
+          - 'https'
+        paths:
+          '/requestfileuploadurl':
+            get:
+              consumes:
+                - 'application/json'
+              produces:
+                - 'application/json'
+              responses:
+                '200':
+                  description: '200 response'
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: 'string'
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: '200'
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PresignedUrlBackendFunction.Arn}/invocations'
+                passthroughBehavior: 'when_no_templates'
+                httpMethod: 'POST'
+                contentHandling: 'CONVERT_TO_TEXT'
+                type: 'aws_proxy'
+            post:
+              consumes:
+                - 'application/json'
+              produces:
+                - 'application/json'
+              responses:
+                '200':
+                  description: '200 response'
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: 'string'
+                    Access-Control-Allow-Headers:
+                      type: 'string'
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: '200'
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      #method.response.header.Access-Control-Allow-Headers: "'*'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PresignedUrlBackendFunction.Arn}/invocations'
+                passthroughBehavior: 'when_no_templates'
+                httpMethod: 'POST'
+                contentHandling: 'CONVERT_TO_TEXT'
+                type: 'aws_proxy'
+            options:
+              consumes:
+                - 'application/json'
+              produces:
+                - 'application/json'
+              responses:
+                '200':
+                  description: '200 response'
+                  schema:
+                    $ref: '#/definitions/Empty'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: 'string'
+                    Access-Control-Allow-Methods:
+                      type: 'string'
+                    Access-Control-Allow-Headers:
+                      type: 'string'
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: '200'
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+                      #method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Headers: "'*'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: '{"statusCode": 200}'
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PresignedUrlBackendFunction.Arn}/invocations'
+                passthroughBehavior: 'when_no_match'
+                type: 'mock'
+
+  PresignedUrlLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: IAM role for PresignedUrlLambda execution
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: PresignedUrlS3Policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                Resource: '*'
+
+  PresignedUrlS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: file-storage-oregon
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedMethods:
+              - PUT
+              - GET
+            AllowedHeaders:
+              - "*"
+      VersioningConfiguration:
+        Status: Enabled
+
+  PresignedUrlBackendFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       CodeUri: PresignedUrlBackend
       Handler: presignedUrl.App::handleRequest
       Runtime: java8
-      Role: arn:aws:iam::677639020268:role/file_storeage_presigned_url_role
+      #Role: arn:aws:iam::677639020268:role/file_storeage_presigned_url_role
+      Role: !GetAtt PresignedUrlLambdaRole.Arn
       MemorySize: 512
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
           PARAM1: VALUE
       Events:
-        HelloWorld:
+        PresignedUrlBackendApiEvent:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
             Path: /requestfileuploadurl
             Method: post
-
-
+            RestApiId: !Ref ApiGatewayApi
+          Cors:
+            AllowMethods: "OPTIONS,POST,GET"
+            AllowHeaders: "*"
+            AllowOrigin: "*"
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  PresignedUrlApi:
+    Description: "API Gateway endpoint URL for Prod stage for Presigned Url Backend function"
+    Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  RootResourceId:
+    Value: !GetAtt ApiGatewayApi.RootResourceId
 
